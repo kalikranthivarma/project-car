@@ -2,8 +2,11 @@ import { useState } from "react";
 import { auth, db } from "../services/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+import { useNavigate } from "react-router-dom"; // ✅ ADD
 
 export default function Register() {
+  const navigate = useNavigate(); // ✅ ADD
+
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -16,27 +19,42 @@ export default function Register() {
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  // 🔒 Registration logic unchanged
+  // 🔒 Registration logic (validation + redirect added)
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const userCred = await createUserWithEmailAndPassword(
-      auth,
-      form.email,
-      form.password
-    );
+    // ✅ PASSWORD VALIDATION
+    if (form.password.length < 6) {
+      alert("Password must be at least 6 characters long");
+      return;
+    }
 
-    await setDoc(doc(db, "users", userCred.user.uid), {
-      name: form.name,
-      email: form.email,
-      contact: form.contact,
-      address: form.address,
-      drivingLicense: form.license,
-      role: "customer",
-      createdAt: new Date(),
-    });
+    try {
+      const userCred = await createUserWithEmailAndPassword(
+        auth,
+        form.email,
+        form.password
+      );
 
-    alert("Registration successful!");
+      await setDoc(doc(db, "users", userCred.user.uid), {
+        name: form.name,
+        email: form.email,
+        contact: form.contact,
+        address: form.address,
+        drivingLicense: form.license,
+        role: "customer",
+        createdAt: new Date(),
+      });
+
+      alert("Registration successful!");
+
+      // ✅ REDIRECT TO HOME
+      navigate("/");
+
+    } catch (error) {
+      console.error(error);
+      alert(error.message);
+    }
   };
 
   return (
@@ -62,7 +80,10 @@ export default function Register() {
         </p>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 sm:grid-cols-2 gap-5"
+        >
 
           {/* Full Name */}
           <div>
@@ -74,13 +95,7 @@ export default function Register() {
               placeholder="John Doe"
               onChange={handleChange}
               required
-              className="
-                w-full px-4 py-2
-                border border-slate-300 rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-yellow-400
-                focus:border-yellow-400
-                transition
-              "
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 transition"
             />
           </div>
 
@@ -95,13 +110,7 @@ export default function Register() {
               placeholder="you@example.com"
               onChange={handleChange}
               required
-              className="
-                w-full px-4 py-2
-                border border-slate-300 rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-yellow-400
-                focus:border-yellow-400
-                transition
-              "
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 transition"
             />
           </div>
 
@@ -113,17 +122,15 @@ export default function Register() {
             <input
               name="password"
               type="password"
-              placeholder="••••••••"
+              placeholder="Minimum 6 characters"
               onChange={handleChange}
+              minLength={6}
               required
-              className="
-                w-full px-4 py-2
-                border border-slate-300 rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-yellow-400
-                focus:border-yellow-400
-                transition
-              "
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 transition"
             />
+            <p className="text-xs text-slate-500 mt-1">
+              Password must be at least 6 characters
+            </p>
           </div>
 
           {/* Contact */}
@@ -136,13 +143,7 @@ export default function Register() {
               placeholder="+91 98765 43210"
               onChange={handleChange}
               required
-              className="
-                w-full px-4 py-2
-                border border-slate-300 rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-yellow-400
-                focus:border-yellow-400
-                transition
-              "
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 transition"
             />
           </div>
 
@@ -156,13 +157,7 @@ export default function Register() {
               placeholder="Your full address"
               onChange={handleChange}
               required
-              className="
-                w-full px-4 py-2
-                border border-slate-300 rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-yellow-400
-                focus:border-yellow-400
-                transition
-              "
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 transition"
             />
           </div>
 
@@ -176,13 +171,7 @@ export default function Register() {
               placeholder="DL-XXXXXXXXXXXX"
               onChange={handleChange}
               required
-              className="
-                w-full px-4 py-2
-                border border-slate-300 rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-yellow-400
-                focus:border-yellow-400
-                transition
-              "
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 transition"
             />
           </div>
 
@@ -190,18 +179,12 @@ export default function Register() {
           <div className="sm:col-span-2">
             <button
               type="submit"
-              className="
-                w-full py-2.5
-                bg-slate-900 text-white font-semibold
-                rounded-lg
-                hover:bg-yellow-400 hover:text-black
-                transition duration-300
-                shadow-md hover:shadow-lg
-              "
+              className="w-full py-2.5 bg-slate-900 text-white font-semibold rounded-lg hover:bg-yellow-400 hover:text-black transition shadow-md"
             >
               Register
             </button>
           </div>
+
         </form>
       </div>
     </div>

@@ -12,17 +12,41 @@ export default function AddCar() {
   });
 
   const [images, setImages] = useState([]);
+  const [preview, setPreview] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     setCar({ ...car, [e.target.name]: e.target.value });
   };
 
+  /* ================= IMAGE VALIDATION ================= */
   const handleImageChange = (e) => {
-    setImages(Array.from(e.target.files));
+    const files = Array.from(e.target.files);
+    const allowedTypes = /image\/(jpeg|jpg|png|webp)/;
+
+    // ❌ Reject non-image files
+    const invalidFiles = files.filter(
+      (file) => !allowedTypes.test(file.type)
+    );
+
+    if (invalidFiles.length > 0) {
+      alert(
+        "Only image files are allowed (JPG, JPEG, PNG, WEBP). Documents are not permitted."
+      );
+      e.target.value = null;
+      setImages([]);
+      setPreview([]);
+      return;
+    }
+
+    setImages(files);
+
+    // preview images
+    const previews = files.map((file) => URL.createObjectURL(file));
+    setPreview(previews);
   };
 
-  // 🔹 Upload images to Cloudinary
+  /* ================= CLOUDINARY UPLOAD ================= */
   const uploadImagesToCloudinary = async () => {
     const uploadedUrls = [];
 
@@ -46,8 +70,15 @@ export default function AddCar() {
     return uploadedUrls;
   };
 
+  /* ================= SUBMIT ================= */
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (images.length === 0) {
+      alert("Please upload at least one valid image.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -72,6 +103,7 @@ export default function AddCar() {
         description: "",
       });
       setImages([]);
+      setPreview([]);
     } catch (error) {
       console.error(error);
       alert("Error adding car");
@@ -81,133 +113,100 @@ export default function AddCar() {
   };
 
   return (
-    <div
-      className="min-h-screen bg-cover bg-center flex items-center justify-center px-4 py-10"
-      style={{
-        backgroundImage:
-          "url('https://img.freepik.com/free-vector/dark-black-backdrop-with-abstract-silver-shape-design_1017-59595.jpg?semt=ais_hybrid&w=740&q=80')",
-      }}
-    >
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/80"></div>
+    <div className="min-h-screen bg-black flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-3xl bg-white rounded-2xl shadow-xl p-6">
 
-      {/* Card */}
-      <div className="relative w-full max-w-3xl bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-6 sm:p-8">
-
-        {/* Heading */}
-        <h3 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-6 text-center">
+        <h3 className="text-2xl font-bold text-center mb-6">
           Add New Car
         </h3>
 
-        {/* Form */}
         <form
           onSubmit={handleSubmit}
           className="grid grid-cols-1 sm:grid-cols-2 gap-5"
         >
+          <input
+            name="brand"
+            value={car.brand}
+            onChange={handleChange}
+            placeholder="Brand"
+            required
+            className="border px-4 py-2 rounded-lg"
+          />
 
-          {/* Brand */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Brand
-            </label>
-            <input
-              name="brand"
-              value={car.brand}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-400 outline-none"
-            />
-          </div>
+          <input
+            name="model"
+            value={car.model}
+            onChange={handleChange}
+            placeholder="Model"
+            required
+            className="border px-4 py-2 rounded-lg"
+          />
 
-          {/* Model */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Model
-            </label>
-            <input
-              name="model"
-              value={car.model}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-400 outline-none"
-            />
-          </div>
+          <input
+            type="number"
+            name="year"
+            value={car.year}
+            onChange={handleChange}
+            placeholder="Year"
+            required
+            className="border px-4 py-2 rounded-lg"
+          />
 
-          {/* Year */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Year
-            </label>
-            <input
-              type="number"
-              name="year"
-              value={car.year}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-400 outline-none"
-            />
-          </div>
+          <input
+            type="number"
+            name="price"
+            value={car.price}
+            onChange={handleChange}
+            placeholder="Price"
+            required
+            className="border px-4 py-2 rounded-lg"
+          />
 
-          {/* Price */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Price
-            </label>
-            <input
-              type="number"
-              name="price"
-              value={car.price}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-400 outline-none"
-            />
-          </div>
-
-          {/* Image Upload */}
+          {/* IMAGE UPLOAD */}
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Upload Car Images
-            </label>
             <input
               type="file"
               multiple
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               onChange={handleImageChange}
-              className="w-full px-3 py-2 border border-dashed rounded-lg bg-white"
+              className="w-full border p-2 rounded-lg"
             />
-            <p className="text-xs text-slate-400 mt-1">
-              Upload multiple images (JPG / PNG)
-            </p>
+
+            {/* PREVIEW */}
+            {preview.length > 0 && (
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                {preview.map((src, i) => (
+                  <img
+                    key={i}
+                    src={src}
+                    alt="preview"
+                    className="h-24 w-full object-cover rounded-lg border"
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Description */}
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Description
-            </label>
-            <textarea
-              name="description"
-              rows="4"
-              value={car.description}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-slate-400 outline-none"
-            ></textarea>
-          </div>
+          <textarea
+            name="description"
+            value={car.description}
+            onChange={handleChange}
+            placeholder="Description"
+            rows="3"
+            className="sm:col-span-2 border px-4 py-2 rounded-lg"
+          />
 
-          {/* Submit */}
-          <div className="sm:col-span-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full py-3 rounded-lg font-semibold transition ${
-                loading
-                  ? "bg-slate-400 cursor-not-allowed"
-                  : "bg-slate-900 text-white hover:bg-black"
-              }`}
-            >
-              {loading ? "Uploading..." : "Add Car"}
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className={`sm:col-span-2 py-3 rounded-lg font-semibold ${
+              loading
+                ? "bg-gray-400"
+                : "bg-black text-white hover:bg-gray-900"
+            }`}
+          >
+            {loading ? "Uploading..." : "Add Car"}
+          </button>
         </form>
       </div>
     </div>

@@ -5,6 +5,8 @@ import {
   getDocs,
   updateDoc,
   doc,
+  orderBy,
+  query,
 } from "firebase/firestore";
 
 import {
@@ -38,6 +40,7 @@ export default function Dashboard() {
   const [cars, setCars] = useState([]);
   const [enquiries, setEnquiries] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [testRides, setTestRides] = useState([]);
   const [loading, setLoading] = useState(true);
 
   /* ================= FETCH DATA ================= */
@@ -45,20 +48,19 @@ export default function Dashboard() {
     try {
       const carsSnap = await getDocs(collection(db, "cars"));
       const enquiriesSnap = await getDocs(collection(db, "enquiries"));
-      const bookingsSnap = await getDocs(collection(db, "bookings"));
 
-      setCars(carsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setEnquiries(enquiriesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const bookingsSnap = await getDocs(
+        query(collection(db, "bookings"), orderBy("createdAt", "desc"))
+      );
 
-      const bookingData = bookingsSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .sort(
-          (a, b) =>
-            (b.createdAt?.seconds || 0) -
-            (a.createdAt?.seconds || 0)
-        );
+      const testRideSnap = await getDocs(
+        query(collection(db, "testRides"), orderBy("createdAt", "desc"))
+      );
 
-      setBookings(bookingData);
+      setCars(carsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setEnquiries(enquiriesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setBookings(bookingsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setTestRides(testRideSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
       console.error("Dashboard fetch error:", err);
     }
@@ -69,32 +71,34 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  /* ================= UPDATE BOOKING STATUS ================= */
+  /* ================= UPDATE STATUS ================= */
   const updateBookingStatus = async (id, status) => {
-    try {
-      await updateDoc(doc(db, "bookings", id), { status });
-      setBookings((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, status } : b))
-      );
-    } catch {
-      alert("Failed to update status");
-    }
+    await updateDoc(doc(db, "bookings", id), { status });
+    setBookings(prev =>
+      prev.map(b => (b.id === id ? { ...b, status } : b))
+    );
   };
 
-  /* ================= DATA PROCESSING ================= */
+  const updateTestRideStatus = async (id, status) => {
+    await updateDoc(doc(db, "testRides", id), { status });
+    setTestRides(prev =>
+      prev.map(tr => (tr.id === id ? { ...tr, status } : tr))
+    );
+  };
+
+  /* ================= STATS ================= */
   const carsByBrand = cars.reduce((acc, car) => {
     acc[car.brand] = (acc[car.brand] || 0) + 1;
     return acc;
   }, {});
 
   const revenueByBrand = bookings
-    .filter((b) => b.status === "paid")
+    .filter(b => b.status === "paid")
     .reduce((acc, b) => {
       acc[b.brand] = (acc[b.brand] || 0) + 1;
       return acc;
     }, {});
 
-  /* ================= CHART DATA ================= */
   const brandChart = {
     labels: Object.keys(carsByBrand),
     datasets: [
@@ -159,12 +163,10 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* ================= CARS BY BRAND ================= */}
         <ChartCard title="Cars by Brand">
           <Bar data={brandChart} options={chartOptions} />
         </ChartCard>
 
-        {/* ================= PAYMENT REVENUE ================= */}
         <ChartCard title="Payment Revenue (Paid Bookings)">
           {Object.keys(revenueByBrand).length === 0 ? (
             <p className="text-slate-400 text-center">No paid bookings yet</p>
@@ -173,100 +175,128 @@ export default function Dashboard() {
           )}
         </ChartCard>
 
-        {/* ================= ADDED CARS LIST ================= */}
-        <h2 className="text-2xl font-semibold mb-6 mt-16">
-          Total Added Cars
-        </h2>
-
-        <div className="overflow-x-auto rounded-xl border border-white/10 mb-16">
-          <table className="min-w-full bg-white/5 text-sm">
-            <thead className="bg-white/10 text-slate-300 uppercase">
-              <tr>
-                <th className="px-6 py-3">Image</th>
-                <th className="px-6 py-3">Car</th>
-                <th className="px-6 py-3">Year</th>
-                <th className="px-6 py-3">Description</th>
-                <th className="px-6 py-3">Status</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-white/10">
-              {cars.map((car) => (
-                <tr key={car.id} className="hover:bg-white/10">
-                  <td className="px-6 py-4">
-                    <img
-                      src={car.images?.[0] || FALLBACK_IMAGE}
-                      alt={car.brand}
-                      className="w-24 h-16 object-cover rounded-lg border border-white/10"
-                    />
-                  </td>
-                  <td className="px-6 py-4 font-semibold">
-                    {car.brand} {car.model}
-                  </td>
-                  <td className="px-6 py-4">{car.year}</td>
-                  <td className="px-6 py-4 max-w-md text-slate-400">
-                    <p className="line-clamp-2">
-                      {car.description || "No description"}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-400/20 text-green-400">
-                      Available
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
         {/* ================= BOOKING MANAGEMENT ================= */}
-        <h2 className="text-2xl font-semibold mb-6">
+        <h2 className="text-2xl font-semibold mb-6 mt-16">
           Booking Management
         </h2>
 
-        <div className="overflow-x-auto rounded-xl border border-white/10">
-          <table className="min-w-full bg-white/5 text-sm">
-            <thead className="bg-white/10 text-slate-300 uppercase">
-              <tr>
-                <th className="px-6 py-3">Customer</th>
-                <th className="px-6 py-3">Car</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3">Actions</th>
+        <TableWrapper>
+          <thead>
+            <tr>
+              <Th>Car</Th>
+              <Th>Customer</Th>
+              <Th>Status</Th>
+              <Th>Actions</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {bookings.map(b => (
+              <tr key={b.id}>
+                <Td>
+                  <CarInfo car={b} />
+                </Td>
+                <Td>
+                  <p className="font-semibold">{b.customerName || "Customer"}</p>
+                  <p className="text-xs text-slate-400">📧 {b.userEmail}</p>
+                </Td>
+                <Td>
+                  <StatusBadge status={b.status} />
+                </Td>
+                <Td>
+                  {b.status === "pending" && (
+                    <>
+                      <ActionBtn label="Approve" onClick={() => updateBookingStatus(b.id, "approved")} />
+                      <ActionBtn label="Reject" danger onClick={() => updateBookingStatus(b.id, "rejected")} />
+                    </>
+                  )}
+                </Td>
               </tr>
-            </thead>
+            ))}
+          </tbody>
+        </TableWrapper>
 
-            <tbody className="divide-y divide-white/10">
-              {bookings.map((b) => (
-                <tr key={b.id}>
-                  <td className="px-6 py-4">{b.email}</td>
-                  <td className="px-6 py-4">{b.brand} {b.model}</td>
-                  <td className="px-6 py-4">
-                    <StatusBadge status={b.status} />
-                  </td>
-                  <td className="px-6 py-4 space-x-2">
-                    {b.status === "pending" && (
-                      <>
-                        <ActionBtn label="Approve" onClick={() => updateBookingStatus(b.id, "approved")} />
-                        <ActionBtn label="Reject" danger onClick={() => updateBookingStatus(b.id, "rejected")} />
-                      </>
-                    )}
-                    {b.status === "paid" && (
-                      <ActionBtn label="Mark Delivered" onClick={() => updateBookingStatus(b.id, "delivered")} />
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {/* ================= TEST RIDE REQUESTS ================= */}
+        <h2 className="text-2xl font-semibold mb-6 mt-16">
+          Test Ride Requests
+        </h2>
+
+        <TableWrapper>
+          <thead>
+            <tr>
+              <Th>Car</Th>
+              <Th>Customer</Th>
+              <Th>Requested On</Th>
+              <Th>Status</Th>
+              <Th>Actions</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {testRides.map(tr => (
+              <tr key={tr.id}>
+                <Td>
+                  <CarInfo car={tr} />
+                </Td>
+                <Td>
+                  <p className="font-semibold">{tr.customerName || "Customer"}</p>
+                  <p className="text-xs text-slate-400">📧 {tr.userEmail}</p>
+                </Td>
+                <Td className="text-xs text-slate-400">
+                  {tr.createdAt?.toDate().toLocaleString()}
+                </Td>
+                <Td>
+                  <StatusBadge status={tr.status} />
+                </Td>
+                <Td>
+                  {tr.status === "requested" && (
+                    <>
+                      <ActionBtn label="Approve" onClick={() => updateTestRideStatus(tr.id, "approved")} />
+                      <ActionBtn label="Reject" danger onClick={() => updateTestRideStatus(tr.id, "rejected")} />
+                    </>
+                  )}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </TableWrapper>
 
       </div>
     </div>
   );
 }
 
-/* ================= COMPONENTS ================= */
+/* ================= SHARED COMPONENTS ================= */
+
+const TableWrapper = ({ children }) => (
+  <div className="overflow-x-auto rounded-xl border border-white/10 mb-16">
+    <table className="min-w-full bg-white/5 text-sm">{children}</table>
+  </div>
+);
+
+const Th = ({ children }) => (
+  <th className="px-6 py-3 bg-white/10 text-slate-300 uppercase">
+    {children}
+  </th>
+);
+
+const Td = ({ children }) => (
+  <td className="px-6 py-4">{children}</td>
+);
+
+const CarInfo = ({ car }) => (
+  <div className="flex items-center gap-4">
+    <img
+      src={car.images?.[0] || FALLBACK_IMAGE}
+      alt={car.brand}
+      className="w-20 h-14 object-cover rounded-lg border border-white/10"
+    />
+    <div>
+      <p className="font-semibold">
+        {car.brand} {car.model}
+      </p>
+      <p className="text-xs text-slate-400">{car.year}</p>
+    </div>
+  </div>
+);
 
 function StatCard({ title, value, highlight }) {
   return (
@@ -295,6 +325,7 @@ function StatusBadge({ status }) {
     paid: "bg-blue-400/20 text-blue-400",
     delivered: "bg-purple-400/20 text-purple-400",
     rejected: "bg-red-400/20 text-red-400",
+    requested: "bg-yellow-400/20 text-yellow-400",
   };
 
   return (
@@ -308,10 +339,11 @@ function ActionBtn({ label, onClick, danger }) {
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition
-        ${danger
-          ? "bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white"
-          : "bg-white/20 text-white hover:bg-white hover:text-black"
+      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition mr-2
+        ${
+          danger
+            ? "bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white"
+            : "bg-white/20 text-white hover:bg-white hover:text-black"
         }`}
     >
       {label}
